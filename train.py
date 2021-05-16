@@ -80,7 +80,6 @@ def main(opt):
     for epoch in range(opt.niter):  # loop over the dataset multiple times
         print(f'Starting epoch: {epoch + 1}')
         for i, data in enumerate(tqdm(trainloader, 0)):
-                break
             inputs, labels = data
             optimizer.zero_grad()
 
