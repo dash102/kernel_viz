@@ -21,7 +21,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
+# was getting weird errors on my machine as well
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+# only sampling some kernels per layer bc there are tens of thousands of kernels in some layers
+num_kernels_to_sample = 15
 
 def create_parser():
     # training configurations
@@ -74,9 +77,11 @@ def main(opt):
             print(module.weight.shape)
 
     running_loss = 0.0
-    for epoch in range(0): #opt.niter):  # loop over the dataset multiple times
+    for epoch in range(opt.niter):  # loop over the dataset multiple times
         print(f'Starting epoch: {epoch + 1}')
         for i, data in enumerate(tqdm(trainloader, 0)):
+            if i > 20:
+                break
             inputs, labels = data
             optimizer.zero_grad()
 
@@ -99,17 +104,16 @@ def main(opt):
                 #                 global_step=epoch * len(trainloader) + i)
                 running_loss = 0.0
 
-    # Log non 1x1 kernels to tensorboard
-    # only sampling some kernels per layer bc there are tens of thousands of kernels in some layers
-    num_kernels_to_sample = 15
-    i = 0
-    for layer in all_layers[:-1]:
-        layer = layer.weight.detach().numpy()
-        if layer.shape[2] > 1:
-            print(i, layer.shape)
-            fig = plot_kernels_tensorboard(layer, num_kernels_to_sample)
-            writer.add_figure("Kernels for layer %d" % (i), fig)
-        i += 1
+        # Log non 1x1 kernels to tensorboard
+
+        i = 0
+        # print("Writing kernel data for epoch %d" % (epoch))
+        for layer in all_layers[:-1]:
+            layer = layer.weight.detach().numpy()
+            if layer.shape[2] > 1:
+                fig = plot_kernels_tensorboard(layer, num_kernels_to_sample)
+                writer.add_figure("Kernels for layer %d" % (i), fig, epoch)
+            i += 1
 
     print(f'Finished Training, loss = {running_loss / 1000}')
 
