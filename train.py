@@ -24,7 +24,7 @@ from torch.utils.tensorboard import SummaryWriter
 # was getting weird errors on my machine as well
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 # only sampling some kernels per layer bc there are tens of thousands of kernels in some layers
-num_kernels_to_sample = 15
+num_kernels_to_sample = 16
 
 def create_parser():
     # training configurations
@@ -80,7 +80,6 @@ def main(opt):
     for epoch in range(opt.niter):  # loop over the dataset multiple times
         print(f'Starting epoch: {epoch + 1}')
         for i, data in enumerate(tqdm(trainloader, 0)):
-            if i > 20:
                 break
             inputs, labels = data
             optimizer.zero_grad()
