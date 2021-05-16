@@ -63,8 +63,9 @@ def plot_kernels_tensorboard(layer, num_kernels_to_sample):
     out_channels = layer.shape[0]
     in_channels = 1
 
-    fig, axs = plt.subplots(num_kernels_to_sample,in_channels)
-    fig.set_size_inches(in_channels, num_kernels_to_sample)
+    rows = (num_kernels_to_sample + 3)//4
+    fig, axs = plt.subplots(rows, 4)
+    fig.set_size_inches(in_channels, 1)
 
     random_kernel_i = rng.choice(out_channels, size=num_kernels_to_sample, replace=False)
     random_kernels = layer[random_kernel_i]
@@ -75,8 +76,11 @@ def plot_kernels_tensorboard(layer, num_kernels_to_sample):
         if kernel.shape[2] > 3:
             random_channel_i = rng.choice(kernel.shape[2])
             kernel = kernel[:, :, random_channel_i]
-        axs[i].imshow(norm(kernel))
+        axs[i//4][i%4].imshow(norm(kernel), cmap='gray')
 
-        axs[i].set_xticklabels([])
-        axs[i].set_yticklabels([])
+        axs[i//4][i%4].axis(False)
+    # clear up extra axes labels    
+    for i in range(num_kernels_to_sample, 4 * rows):
+        axs[i//4][i%4].axis(False)
+
     return fig
