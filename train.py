@@ -4,21 +4,24 @@ import random
 
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.random import default_rng
 from tqdm import tqdm
 
-from utils import images_to_probs, plot_classes_preds, matplotlib_imshow
-import models
+from utils import images_to_probs, plot_classes_preds, matplotlib_imshow, plot_kernels_tensorboard
+# import models
 from data import get_data
 
 import torch
 import torchvision
 import torchvision.transforms as transforms
+import torchvision.models as models
 
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 def create_parser():
     # training configurations
@@ -32,7 +35,7 @@ def create_parser():
     parser.add_argument('--checkpoint', type=str,
                         help='continue training from a checkpoint')
     parser.add_argument('--dataname', type=str,
-                        default='fashion')
+                        default='CIFAR10')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='learning rate for SGD')
     parser.add_argument('--momentum', type=float, default=0.9,
@@ -45,17 +48,33 @@ def main(opt):
     torch.manual_seed(opt.seed)
     np.random.seed(opt.seed)
 
+    torch.cuda.manual_seed_all(0)
+
+    device = torch.device("cpu")
+
     trainset = get_data(opt.dataname)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=opt.batch_size,
                                             shuffle=True, num_workers=0)
 
-    net = models.Net()
+    # net = models.Net()
+    net = models.resnet50(pretrained=True)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=opt.lr, momentum=opt.momentum)
     writer = SummaryWriter(f'runs/{opt.dataname}_experiment_1')
 
+    all_layers = []
+
+    # Filter out all the layers with no weights for kernel viz
+    for module in list(net.modules()):
+        module_type = type(module)
+        if module_type not in {nn.Sequential, models.resnet.ResNet, nn.ReLU, nn.BatchNorm2d,
+                               models.resnet.Bottleneck, nn.MaxPool2d, nn.AdaptiveAvgPool2d,
+                               nn.modules.pooling.AvgPool2d}:
+            all_layers.append(module)
+            print(module.weight.shape)
+
     running_loss = 0.0
-    for epoch in range(opt.niter):  # loop over the dataset multiple times
+    for epoch in range(0): #opt.niter):  # loop over the dataset multiple times
         print(f'Starting epoch: {epoch + 1}')
         for i, data in enumerate(tqdm(trainloader, 0)):
             inputs, labels = data
@@ -75,10 +94,23 @@ def main(opt):
 
                 # log a Matplotlib Figure showing the model's predictions on a
                 # random mini-batch
-                writer.add_figure('predictions vs. actuals',
-                                plot_classes_preds(net, inputs, labels),
-                                global_step=epoch * len(trainloader) + i)
+                # writer.add_figure('predictions vs. actuals',
+                #                 plot_classes_preds(net, inputs, labels),
+                #                 global_step=epoch * len(trainloader) + i)
                 running_loss = 0.0
+
+    # Log non 1x1 kernels to tensorboard
+    # only sampling some kernels per layer bc there are tens of thousands of kernels in some layers
+    num_kernels_to_sample = 15
+    i = 0
+    for layer in all_layers[:-1]:
+        layer = layer.weight.detach().numpy()
+        if layer.shape[2] > 1:
+            print(i, layer.shape)
+            fig = plot_kernels_tensorboard(layer, num_kernels_to_sample)
+            writer.add_figure("Kernels for layer %d" % (i), fig)
+        i += 1
+
     print(f'Finished Training, loss = {running_loss / 1000}')
 
 if __name__ == '__main__':

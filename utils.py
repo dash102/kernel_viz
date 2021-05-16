@@ -1,7 +1,10 @@
 import numpy as np
+from numpy.random import default_rng
 import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
+
+rng = default_rng()
 
 def images_to_probs(net, images):
     '''
@@ -14,6 +17,11 @@ def images_to_probs(net, images):
     preds = np.squeeze(preds_tensor.numpy())
     return preds, [F.softmax(el, dim=0)[i].item() for i, el in zip(preds, output)]
 
+# normalize image (for matplotlib viewing purposes)
+def norm(img):
+    img_min = np.min(img)
+    img_max = np.max(img)
+    return (img - img_min) / (img_max - img_min)
 
 def plot_classes_preds(net, images, labels):
     '''
@@ -49,3 +57,26 @@ def matplotlib_imshow(img, one_channel=False):
         plt.imshow(npimg, cmap="Greys")
     else:
         plt.imshow(np.transpose(npimg, (1, 2, 0)))
+
+# helper function to log to tensorboard
+def plot_kernels_tensorboard(layer, num_kernels_to_sample):
+    out_channels = layer.shape[0]
+    in_channels = 1
+
+    fig, axs = plt.subplots(num_kernels_to_sample,in_channels)
+    fig.set_size_inches(in_channels, num_kernels_to_sample)
+
+    random_kernel_i = rng.choice(out_channels, size=num_kernels_to_sample, replace=False)
+    random_kernels = layer[random_kernel_i]
+
+    for i in range(num_kernels_to_sample):
+        #
+        kernel = random_kernels[i].swapaxes(0, 2).swapaxes(0, 1)
+        if kernel.shape[2] > 3:
+            random_channel_i = rng.choice(kernel.shape[2])
+            kernel = kernel[:, :, random_channel_i]
+        axs[i].imshow(norm(kernel))
+
+        axs[i].set_xticklabels([])
+        axs[i].set_yticklabels([])
+    return fig
