@@ -79,7 +79,7 @@ def plot_kernels_tensorboard(layer, num_kernels_to_sample):
         axs[i//4][i%4].imshow(norm(kernel), cmap='gray')
 
         axs[i//4][i%4].axis(False)
-    # clear up extra axes labels    
+    # clear up extra axes labels
     for i in range(num_kernels_to_sample, 4 * rows):
         axs[i//4][i%4].axis(False)
 

@@ -1,13 +1,16 @@
 import argparse
 import os
 import random
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.random import default_rng
 from tqdm import tqdm
 
+# import cutom helpers
 from utils import images_to_probs, plot_classes_preds, matplotlib_imshow, plot_kernels_tensorboard
+from featuremaps import extract_feature_map
 # import models
 from data import get_data
 
@@ -43,6 +46,10 @@ def create_parser():
                         help='learning rate for SGD')
     parser.add_argument('--momentum', type=float, default=0.9,
                         help='momentum for SGD')
+    parser.add_argument('--train_model', type=str, default='n',
+                        help='y to train model, n to use pretrained')
+    parser.add_argument('--name', type=str, default='1',
+                        help='name to identify run')
     return parser
 
 def main(opt):
@@ -50,20 +57,25 @@ def main(opt):
     random.seed(opt.seed)
     torch.manual_seed(opt.seed)
     np.random.seed(opt.seed)
+    torch.cuda.manual_seed_all(opt.seed)
 
-    torch.cuda.manual_seed_all(0)
-
-    device = torch.device("cpu")
+    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 
     trainset = get_data(opt.dataname)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=opt.batch_size,
                                             shuffle=True, num_workers=0)
 
     # net = models.Net()
-    net = models.resnet50(pretrained=True)
+    if opt.train_model == 'y':
+        use_pretrained = False
+    else:
+        use_pretrained = True
+
+    net = models.resnet50(pretrained=use_pretrained)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=opt.lr, momentum=opt.momentum)
-    writer = SummaryWriter(f'runs/{opt.dataname}_experiment_1')
+    writer = SummaryWriter(f'runs/{opt.dataname}_experiment_{opt.name}')
+
 
     all_layers = []
 
@@ -77,41 +89,67 @@ def main(opt):
             print(module.weight.shape)
 
     running_loss = 0.0
-    for epoch in range(opt.niter):  # loop over the dataset multiple times
-        print(f'Starting epoch: {epoch + 1}')
-        for i, data in enumerate(tqdm(trainloader, 0)):
-            inputs, labels = data
-            optimizer.zero_grad()
+    if not use_pretrained:
+        for epoch in range(opt.niter):  # loop over the dataset multiple times if training
+            print(f'Starting epoch: {epoch + 1}')
+            for i, data in enumerate(tqdm(trainloader, 0)):
+                inputs, labels = data
+                optimizer.zero_grad()
 
-            outputs = net(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+                outputs = net(inputs)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
 
-            running_loss += loss.item()
-            if i % 100 == 0:
-                # log the running loss
-                writer.add_scalar('training loss',
-                                running_loss / 1000,
-                                epoch * len(trainloader) + i)
+                running_loss += loss.item()
 
-                # log a Matplotlib Figure showing the model's predictions on a
-                # random mini-batch
-                # writer.add_figure('predictions vs. actuals',
-                #                 plot_classes_preds(net, inputs, labels),
-                #                 global_step=epoch * len(trainloader) + i)
-                running_loss = 0.0
+                if i % 100 == 0:
+                    # log the running loss
+                    writer.add_scalar('training loss',
+                                    running_loss / 1000,
+                                    epoch * len(trainloader) + i)
 
-        # Log non 1x1 kernels to tensorboard
+                    # log a Matplotlib Figure showing the model's predictions on a
+                    # random mini-batch
+                    # writer.add_figure('predictions vs. actuals',
+                    #                 plot_classes_preds(net, inputs, labels),
+                    #                 global_step=epoch * len(trainloader) + i)
+                    running_loss = 0.0
 
-        i = 0
-        # print("Writing kernel data for epoch %d" % (epoch))
+                    # Log non 1x1 kernels to tensorboard
+
+                    j = 0
+                    # print("Writing kernel data for epoch %d" % (epoch))
+                    for layer in all_layers[:-1]:
+                        layer = layer.weight.detach().numpy()
+                        if layer.shape[2] > 1:
+                            fig = plot_kernels_tensorboard(layer, num_kernels_to_sample)
+                            writer.add_figure("Kernels for layer %d" % (j),
+                                        fig,
+                                        epoch * len(trainloader) + i)
+                        j += 1
+
+                    # extract feature map
+                    layer_id = 2
+                    writer.add_figure(f'Feature map for layer {layer_id}',
+                                        extract_feature_map(net, layer_id),
+                                        epoch * len(trainloader) + i)
+    else: # write figures to tensorboard
+        j = 0
         for layer in all_layers[:-1]:
             layer = layer.weight.detach().numpy()
             if layer.shape[2] > 1:
                 fig = plot_kernels_tensorboard(layer, num_kernels_to_sample)
-                writer.add_figure("Kernels for layer %d" % (i), fig, epoch)
-            i += 1
+                writer.add_figure("Kernels for layer %d" % (j),
+                            fig)
+            j += 1
+
+        # extract feature maps
+        for layer_id in range(4):
+            fig = extract_feature_map(net, layer_id)
+            writer.add_figure(f'Feature map for layer {layer_id}',
+                                fig)
+        time.sleep(3)
 
     print(f'Finished Training, loss = {running_loss / 1000}')
 
