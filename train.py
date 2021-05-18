@@ -121,9 +121,9 @@ def main(opt):
                     j = 0
                     # print("Writing kernel data for epoch %d" % (epoch))
                     for layer in all_layers[:-1]:
-                        layer = layer.weight.detach().numpy()
-                        if layer.shape[2] > 1:
-                            fig = plot_kernels_tensorboard(layer, num_kernels_to_sample)
+                        layer2 = layer.weight.clone().detach().numpy()
+                        if layer2.shape[2] > 1:
+                            fig = plot_kernels_tensorboard(layer2, num_kernels_to_sample)
                             writer.add_figure("Kernels for layer %d" % (j),
                                         fig,
                                         epoch * len(trainloader) + i)
@@ -137,9 +137,9 @@ def main(opt):
     else: # write figures to tensorboard
         j = 0
         for layer in all_layers[:-1]:
-            layer = layer.weight.detach().numpy()
-            if layer.shape[2] > 1:
-                fig = plot_kernels_tensorboard(layer, num_kernels_to_sample)
+            layer2 = layer.weight.clone().detach().numpy()
+            if layer2.shape[2] > 1:
+                fig = plot_kernels_tensorboard(layer2, num_kernels_to_sample)
                 writer.add_figure("Kernels for layer %d" % (j),
                             fig)
             j += 1
