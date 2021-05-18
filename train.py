@@ -22,6 +22,7 @@ import torchvision.models as models
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.autograd import Variable
 from torch.utils.tensorboard import SummaryWriter
 
 # was getting weird errors on my machine as well
@@ -98,6 +99,7 @@ def main(opt):
 
                 outputs = net(inputs)
                 loss = criterion(outputs, labels)
+                loss = Variable(loss, requires_grad = True)
                 loss.backward()
                 optimizer.step()
 
