@@ -132,10 +132,10 @@ def main(opt):
                         j += 1
 
                     # extract feature map
-                    layer_id = 2
-                    writer.add_figure(f'Feature map for layer {layer_id}',
-                                        extract_feature_map(net, layer_id),
-                                        epoch * len(trainloader) + i)
+                    for layer_id in range(4):
+                        writer.add_figure(f'Feature map for layer {layer_id}',
+                                            extract_feature_map(net, layer_id),
+                                            epoch * len(trainloader) + i)
     else: # write figures to tensorboard
         j = 0
         for layer in all_layers[:-1]:
