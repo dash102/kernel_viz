@@ -64,7 +64,7 @@ def main(opt):
 
     trainset = get_data(opt.dataname)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=opt.batch_size,
-                                            shuffle=True, num_workers=0)
+                                            shuffle=True, num_workers=4)
 
     # net = models.Net()
     if opt.train_model == 'y':
@@ -72,11 +72,10 @@ def main(opt):
     else:
         use_pretrained = True
 
-    net = models.resnet50(pretrained=use_pretrained)
+    net = models.resnet50(pretrained=use_pretrained).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(net.parameters(), lr=opt.lr, momentum=opt.momentum)
+    optimizer = optim.Adam(net.parameters(), lr=opt.lr)
     writer = SummaryWriter(f'runs/{opt.dataname}_experiment_{opt.name}')
-
 
     all_layers = []
 
@@ -89,26 +88,30 @@ def main(opt):
             all_layers.append(module)
             print(module.weight.shape)
 
-    running_loss = 0.0
+    log_interval = 50
+    # running_loss = 0.0
     if not use_pretrained:
         for epoch in range(opt.niter):  # loop over the dataset multiple times if training
             print(f'Starting epoch: {epoch + 1}')
             for i, data in enumerate(tqdm(trainloader, 0)):
                 inputs, labels = data
+                inputs = inputs.to(device)
+                inputs.requires_grad = True
+                labels = labels.to(device)
                 optimizer.zero_grad()
 
                 outputs = net(inputs)
                 loss = criterion(outputs, labels)
-                loss = Variable(loss, requires_grad = True)
+                
+                # loss = Variable(loss, requires_grad = True)
                 loss.backward()
                 optimizer.step()
+                # running_loss += loss.item()
 
-                running_loss += loss.item()
-
-                if i % 100 == 0:
+                if i % log_interval == 30:
                     # log the running loss
                     writer.add_scalar('training loss',
-                                    running_loss / 1000,
+                                    loss.item(),
                                     epoch * len(trainloader) + i)
 
                     # log a Matplotlib Figure showing the model's predictions on a
@@ -116,14 +119,14 @@ def main(opt):
                     # writer.add_figure('predictions vs. actuals',
                     #                 plot_classes_preds(net, inputs, labels),
                     #                 global_step=epoch * len(trainloader) + i)
-                    running_loss = 0.0
+                    # running_loss = 0.0
 
                     # Log non 1x1 kernels to tensorboard
 
                     j = 0
-                    # print("Writing kernel data for epoch %d" % (epoch))
+                    print("Writing kernel for epoch %d step %d" % (epoch, i))
                     for layer in all_layers[:-1]:
-                        layer2 = layer.weight.clone().detach().numpy()
+                        layer2 = layer.weight.clone().detach().cpu().numpy()
                         if layer2.shape[2] > 1:
                             fig = plot_kernels_tensorboard(layer2, num_kernels_to_sample)
                             writer.add_figure("Kernels for layer %d" % (j),
@@ -132,9 +135,10 @@ def main(opt):
                         j += 1
 
                     # extract feature map
+                    print("Writing feature map for epoch %d step %d" % (epoch, i))
                     for layer_id in range(4):
                         writer.add_figure(f'Feature map for layer {layer_id}',
-                                            extract_feature_map(net, layer_id),
+                                            extract_feature_map(net, layer_id, device),
                                             epoch * len(trainloader) + i)
     else: # write figures to tensorboard
         j = 0
@@ -153,7 +157,7 @@ def main(opt):
                                 fig)
     time.sleep(3)
 
-    print(f'Finished Training, loss = {running_loss / 1000}')
+    print(f'Finished Training')
 
 if __name__ == '__main__':
     opt = create_parser().parse_args()

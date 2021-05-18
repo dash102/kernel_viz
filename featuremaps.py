@@ -103,12 +103,12 @@ def obtain_image(tensor_img, do_normalize=True):
 
 # This function creates a function that gives the output of a given
 # network at layer: layer_id.
-def model_layer(model, layer_id):
+def model_layer(model, layer_id, device):
     # These are the 4 sequential layers of resnet50
     layers = [model.layer1, model.layer2, model.layer3, model.layer4]
     def forward(input):
         layers_used = layers[:(layer_id+1)]
-        x = input
+        x = input.to(device)
         x = model.conv1(x)
         x = model.bn1(x)
         x = model.relu(x)
@@ -120,20 +120,20 @@ def model_layer(model, layer_id):
 
 # Given a net and layer_id, extract a feature map from a blank image (use random channel)
 # Returns matplotlib fig
-def extract_feature_map(net, layer_id):
+def extract_feature_map(net, layer_id, device):
     # blank white image
-    img = torch.ones((1, 3, 224, 224))
+    img = torch.ones((1, 3, 224, 224)).to(device)
     # plt.imshow(img[0].permute(1, 2, 0))
 
     for param in net.parameters():
         param.requires_grad = False
 
     batch_tensor = img.clone().requires_grad_(True)
-    step = StepImage(img, step_size=0.05, renorm=False, norm_update='abs', is_normalized=False)
+    step = StepImage(img, step_size=0.1, renorm=False, norm_update='abs', is_normalized=False)
 
-    net_l = model_layer(net, layer_id)
+    net_l = model_layer(net, layer_id, device)
 
-    for _ in tqdm(range(200)):
+    for _ in tqdm(range(100)):
         logit = net_l(batch_tensor)
         out_channels = logit.shape[1]
         channel_id = rng.choice(out_channels, replace=False)
@@ -143,12 +143,12 @@ def extract_feature_map(net, layer_id):
         batch_tensor = step.step(batch_tensor, gradient)
 
     # visualization
-    original_image = obtain_image(img[0, :], do_normalize=False)
+    # original_image = obtain_image(img[0, :], do_normalize=False)
     modified_image = obtain_image(batch_tensor[0, :], do_normalize=False)
 
-    fig, axs = plt.subplots(1, 2, figsize=(10, 5))
-    axs[0].set_title('Original random image')
-    axs[0].imshow(original_image)
-    axs[1].set_title(f'Modified image (layer {layer_id}, channel {channel_id})')
-    axs[1].imshow(modified_image)
+    fig, ax = plt.subplots(figsize=(5, 5))
+    # axs[0].set_title('Original random image')
+    # axs[0].imshow(original_image)
+    ax.set_title(f'Modified image (layer {layer_id}, channel {channel_id})')
+    ax.imshow(modified_image)
     return fig
