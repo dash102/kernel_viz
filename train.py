@@ -151,7 +151,7 @@ def main(opt):
             fig = extract_feature_map(net, layer_id)
             writer.add_figure(f'Feature map for layer {layer_id}',
                                 fig)
-        time.sleep(3)
+    time.sleep(3)
 
     print(f'Finished Training, loss = {running_loss / 1000}')
 
