@@ -125,8 +125,8 @@ def extract_feature_map(net, layer_id, device):
     img = torch.ones((1, 3, 224, 224)).to(device)
     # plt.imshow(img[0].permute(1, 2, 0))
 
-    for param in net.parameters():
-        param.requires_grad = False
+    # for param in net.parameters():
+    #     param.requires_grad = False
 
     batch_tensor = img.clone().requires_grad_(True)
     step = StepImage(img, step_size=0.1, renorm=False, norm_update='abs', is_normalized=False)

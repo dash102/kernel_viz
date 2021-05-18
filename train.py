@@ -2,6 +2,7 @@ import argparse
 import os
 import random
 import time
+import copy
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -74,7 +75,7 @@ def main(opt):
 
     net = models.resnet50(pretrained=use_pretrained).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(net.parameters(), lr=opt.lr)
+    optimizer = optim.SGD(net.parameters(), lr=opt.lr, momentum=opt.momentum)
     writer = SummaryWriter(f'runs/{opt.dataname}_experiment_{opt.name}')
 
     all_layers = []
@@ -86,7 +87,7 @@ def main(opt):
                                models.resnet.Bottleneck, nn.MaxPool2d, nn.AdaptiveAvgPool2d,
                                nn.modules.pooling.AvgPool2d}:
             all_layers.append(module)
-            print(module.weight.shape)
+            # print(module.weight.shape)
 
     log_interval = 50
     # running_loss = 0.0
@@ -96,19 +97,18 @@ def main(opt):
             for i, data in enumerate(tqdm(trainloader, 0)):
                 inputs, labels = data
                 inputs = inputs.to(device)
-                inputs.requires_grad = True
                 labels = labels.to(device)
                 optimizer.zero_grad()
 
                 outputs = net(inputs)
                 loss = criterion(outputs, labels)
-                
+                # print(loss.item())
                 # loss = Variable(loss, requires_grad = True)
                 loss.backward()
                 optimizer.step()
                 # running_loss += loss.item()
 
-                if i % log_interval == 30:
+                if i % log_interval == 10:
                     # log the running loss
                     writer.add_scalar('training loss',
                                     loss.item(),
@@ -125,8 +125,8 @@ def main(opt):
 
                     j = 0
                     print("Writing kernel for epoch %d step %d" % (epoch, i))
-                    for layer in all_layers[:-1]:
-                        layer2 = layer.weight.clone().detach().cpu().numpy()
+                    for layer in all_layers[:-1]: 
+                        layer2 = layer.weight.data.cpu().numpy()
                         if layer2.shape[2] > 1:
                             fig = plot_kernels_tensorboard(layer2, num_kernels_to_sample)
                             writer.add_figure("Kernels for layer %d" % (j),
